@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+
+### --------------------------------------------------------------------
+###   git--clone-work | DevSecOps Platform Kit 2023
+### --------------------------------------------------------------------
+###   Utility script to clone git project and set "work" identity information in the git config.
+### --------------------------------------------------------------------
+###   License: GNU GENERAL PUBLIC LICENSE Version 3
+###            See the `LICENSE` file in the root of this code project for more details.
+### --------------------------------------------------------------------
+###   Syntax: git--clone-work <git clone url>
+### --------------------------------------------------------------------
+
+SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Import logging library and set logging level
+source "${SCRIPT_HOME}/../lib/bash-logging-lib.sh"
+export DEBUG=0
+
+usage()
+{
+  log info "  syntax:   git--clone-work <git-clone-url>";
+  log info "  examples:";
+  log info "            git--clone-work git@github.com:github/github-docs.git";
+  log info "            git--clone-work git@github.com:github/github-docs.git ./clone-into-non-default-dir";
+}
+
+get_params()
+{
+  if [[ $# == "0" ]];then
+    usage
+    log error "You must specify a command line parameter";
+    exit 1
+  else
+    git_clone_url=$1
+    if [[ -z $2 ]];then
+      log debug "git_clone_target_dir is null"
+    else
+      git_clone_target_dir=$2
+      log info "git_clone_target_dir is ${git_clone_target_dir}"
+    fi
+  fi
+}
+
+
+function get_variables_from_env {
+   git_clone_ssh_config_hostname_github=${GITHUB_WORK_SSH_CONFIG_HOSTNAME}
+   git_clone_ssh_config_hostname_gitlab=${GITLAB_WORK_SSH_CONFIG_HOSTNAME}
+   git_clone_ssh_config_hostname_bitbucket=${BITBUCKET_WORK_SSH_CONFIG_HOSTNAME}
+}
+
+function get_variables_from_git_remote_url {
+  git_remote_origin_url=${git_clone_url}
+  log debug "git_remote_origin_url is ${git_remote_origin_url}";
+  git_remote_origin_url_ssh_user=$(echo "${git_remote_origin_url}" |awk -F '@' '{print $1}')
+  log debug "git_remote_origin_url_ssh_user is ${git_remote_origin_url_ssh_user}";
+
+  git_remote_origin_url_host=$(echo "${git_remote_origin_url}" |awk -F '@' '{print $2}' |awk -F ':' '{print $1}')
+  log debug "git_remote_origin_url_host is ${git_remote_origin_url_host}";
+  git_remote_origin_url_git_provider_tld=$(echo "${git_remote_origin_url_host}" |awk -F '.' '{print $NF}')
+  log debug "git_remote_origin_url_git_provider_tld is ${git_remote_origin_url_git_provider_tld}";
+
+  if [[ $(echo "${git_remote_origin_url_host}" |grep -c -i "github") == "1" ]];then
+    git_remote_origin_url_git_provider="github"
+  elif [[ $(echo "${git_remote_origin_url_host}" |grep -c -i "gitlab") == "1" ]];then
+    git_remote_origin_url_git_provider="gitlab"
+  elif [[ $(echo "${git_remote_origin_url_host}" |grep -c -i "bitbucket") == "1" ]];then
+    git_remote_origin_url_git_provider="bitbucket"
+  fi
+  log debug "git_remote_origin_url_git_provider is ${git_remote_origin_url_git_provider}";
+
+  git_remote_origin_url_org=$(echo "${git_remote_origin_url}" |awk -F ':' '{print $2}' |awk -F '/' '{print $1}')
+  log debug "git_remote_origin_url_org is ${git_remote_origin_url_org}";
+  git_remote_origin_url_repo=$(echo "${git_remote_origin_url}" |awk -F '/' '{print $2}' |awk -F '.git' '{print $1}')
+  log debug "git_remote_origin_url_repo is ${git_remote_origin_url_repo}";
+}
+
+function clone_git_repo {
+
+  if [[ $(echo "${git_clone_url}" | grep -c 'github') == "1" ]] || \
+     [[ $(echo "${git_clone_url}" | grep -c 'gitlab') == "1" ]] || \
+     [[ $(echo "${git_clone_url}"| grep -c 'bitbucket') == "1" ]];then
+
+    get_variables_from_git_remote_url
+
+    case ${git_remote_origin_url_git_provider} in
+      github)    git_clone_ssh_config_hostname="${git_clone_ssh_config_hostname_github}" ;;
+      gitlab)    git_clone_ssh_config_hostname="${git_clone_ssh_config_hostname_gitlab}" ;;
+      bitbucket) git_clone_ssh_config_hostname="${git_clone_ssh_config_hostname_bitbucket}" ;;
+    esac
+
+    if [[ "${git_remote_origin_url_host}" != "${git_clone_ssh_config_hostname}" ]];then
+      log info "git clone ${git_remote_origin_url_ssh_user}@${git_clone_ssh_config_hostname}:${git_remote_origin_url_org}/${git_remote_origin_url_repo}.git ${git_clone_target_dir}"
+      if [ -z ${git_clone_target_dir+x} ];then
+        git clone "${git_remote_origin_url_ssh_user}@${git_clone_ssh_config_hostname}:${git_remote_origin_url_org}/${git_remote_origin_url_repo}.git"
+      else
+        git clone "${git_remote_origin_url_ssh_user}@${git_clone_ssh_config_hostname}:${git_remote_origin_url_org}/${git_remote_origin_url_repo}.git" "${git_clone_target_dir}"
+      fi
+    else
+      log info "git clone ${git_clone_url} ${git_clone_target_dir}"
+      if [ -z ${git_clone_target_dir+x} ];then
+        git clone "${git_clone_url}"
+      else
+        git clone "${git_clone_url}" "${git_clone_target_dir}"
+      fi
+    fi
+  else
+    log_error "The provided git clone url did not contain [github, gitlab or bitbucket]." "These are the only VCS providers supported by this script at the moment.";
+    exit 1
+  fi
+
+}
+
+################################
+# MAINLINE
+################################
+
+get_params "$@"
+get_variables_from_env
+clone_git_repo

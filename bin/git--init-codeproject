@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+### --------------------------------------------------------------------
+###   git--init-codeproject | DevSecOps Platform Kit 2023
+### --------------------------------------------------------------------
+###   Utility script to create a .codeproject file in current directory.
+###   This utility script is meant to be used a top level directory that contain or will contain git projects -
+###   for a common git organization or team or product.
+### --------------------------------------------------------------------
+###   License: GNU GENERAL PUBLIC LICENSE Version 3
+###            See the `LICENSE` file in the root of this code project for more details.
+### --------------------------------------------------------------------
+###   Syntax: git--init-codeproject
+### --------------------------------------------------------------------
+
+SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Import logging library and set logging level
+source "${SCRIPT_HOME}/../lib/bash-logging-lib.sh"
+export DEBUG=0
+
+if [[ -f ".codeproject" ]];then
+  log info "A .codeproject file already exists in this directory - doing nothing!";
+else
+  log info "Creating a .codeproject file in this directory from template";
+  cp -pf "${SCRIPT_HOME}/templates/.codeproject" .
+fi

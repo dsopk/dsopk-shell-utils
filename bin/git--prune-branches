@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+### --------------------------------------------------------------------
+###   git--prune-branches | DevSecOps Platform Kit 2023
+### --------------------------------------------------------------------
+###   Utility script to prune git branches and prune git tags in local git workspace dir.
+### --------------------------------------------------------------------
+###   License: GNU GENERAL PUBLIC LICENSE Version 3
+###            See the `LICENSE` file in the root of this code project for more details.
+### --------------------------------------------------------------------
+###   Syntax: git--prune-branches
+### --------------------------------------------------------------------
+
+SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Import logging library and set logging level
+source "${SCRIPT_HOME}/../lib/bash-logging-lib.sh"
+export DEBUG=0
+
+# Run git remote prune origin command and capture it's output
+GIT_REMOTE_PRUNE_OUTPUT=$(git remote prune origin)
+
+# Send output to the screen for user awareness
+echo "$GIT_REMOTE_PRUNE_OUTPUT"
+
+### Evaluate if any remote branches were pruned
+GIT_PRUNE_STATUS=$(echo "$GIT_REMOTE_PRUNE_OUTPUT" |grep -c "pruned")
+
+### If branches were pruned, list the commands to delete local branches
+if [[ ${GIT_PRUNE_STATUS} == 0 ]]; then
+    log info "There are no branches to prune";
+else
+    log info "Run the following commands to delete pruned branches locally:";
+    echo ""
+    #GIT_REMOTE_PRUNE_BRANCHES_LIST=$(echo "$GIT_REMOTE_PRUNE_OUTPUT" | grep "pruned" |awk -F 'pruned] ' '{print $2}' |awk -F '/' '{print $2}')
+    GIT_REMOTE_PRUNE_BRANCHES_LIST=$(echo "$GIT_REMOTE_PRUNE_OUTPUT" | grep "pruned" |awk -F 'pruned] ' '{print $2}' |awk -F 'origin/' '{print $2}')  # awk print all but first matching column (experimental)
+
+    for i in $(echo "$GIT_REMOTE_PRUNE_BRANCHES_LIST")
+    do
+       echo "git branch -d $i"
+    done
+fi
+
+log info "Pruning tags";
+git fetch --prune --prune-tags

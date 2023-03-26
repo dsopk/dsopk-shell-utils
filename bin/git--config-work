@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+
+### --------------------------------------------------------------------
+###   git--config-work | DevSecOps Platform Kit 2023
+### --------------------------------------------------------------------
+###   Utility script to set git config in local git workspace dir with "work" identity information.
+### --------------------------------------------------------------------
+###   License: GNU GENERAL PUBLIC LICENSE Version 3
+###            See the `LICENSE` file in the root of this code project for more details.
+### --------------------------------------------------------------------
+###   Syntax: git--config-work
+### --------------------------------------------------------------------
+
+SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Import logging library and set logging level
+source "${SCRIPT_HOME}/../lib/bash-logging-lib.sh"
+export DEBUG=0
+
+usage()
+{
+  log info "  syntax:   git--config-work";
+}
+
+function get_variables_from_env {
+  # GitHub
+  git_config_user_name_github=${GITHUB_WORK_USERNAME}
+  git_config_user_email_github=${GITHUB_WORK_USEREMAIL}
+  git_config_ssh_config_hostname_github=${GITHUB_WORK_SSH_CONFIG_HOSTNAME}
+
+  # Gitlab
+  git_config_user_name_gitlab=${GITLAB_WORK_USERNAME}
+  git_config_user_email_gitlab=${GITLAB_WORK_USEREMAIL}
+  git_config_ssh_config_hostname_gitlab=${GITLAB_WORK_SSH_CONFIG_HOSTNAME}
+
+  # Bitbucket
+  git_config_user_name_bitbucket=${BITBUCKET_WORK_USERNAME}
+  git_config_user_email_bitbucket=${BITBUCKET_WORK_USEREMAIL}
+  git_config_ssh_config_hostname_bitbucket=${BITBUCKET_WORK_SSH_CONFIG_HOSTNAME}
+
+  git_config_gpgsign="true"
+  git_config_gpg_signing_key=${GPGKEY_WORK_ID}
+}
+
+function get_variables_from_git_remote_url {
+
+  git_remote_origin_url=$(git config --list |grep 'remote.origin.url' |awk -F '=' '{print $2}')
+  log debug "git_remote_origin_url is ${git_remote_origin_url}";
+  git_remote_origin_url_ssh_user=$(echo "${git_remote_origin_url}" |awk -F '@' '{print $1}')
+  log debug "git_remote_origin_url_ssh_user is ${git_remote_origin_url_ssh_user}";
+
+  git_remote_origin_url_host=$(echo "${git_remote_origin_url}" |awk -F '@' '{print $2}' |awk -F ':' '{print $1}')
+  log debug "git_remote_origin_url_host is ${git_remote_origin_url_host}";
+  git_remote_origin_url_git_provider_tld=$(echo "${git_remote_origin_url_host}" |awk -F '.' '{print $NF}')
+  log debug "git_remote_origin_url_git_provider_tld is ${git_remote_origin_url_git_provider_tld}";
+
+  if [[ $(echo "${git_remote_origin_url_host}" |grep -c -i "github") == "1" ]];then
+    git_remote_origin_url_git_provider="github"
+  elif [[ $(echo "${git_remote_origin_url_host}" |grep -c -i "gitlab") == "1" ]];then
+    git_remote_origin_url_git_provider="gitlab"
+  elif [[ $(echo "${git_remote_origin_url_host}" |grep -c -i "bitbucket") == "1" ]];then
+    git_remote_origin_url_git_provider="bitbucket"
+  fi
+  log debug "git_remote_origin_url_git_provider is ${git_remote_origin_url_git_provider}";
+
+  git_remote_origin_url_org=$(echo "${git_remote_origin_url}" |awk -F ':' '{print $2}' |awk -F '/' '{print $1}')
+  log debug "git_remote_origin_url_org is ${git_remote_origin_url_org}";
+  git_remote_origin_url_repo=$(echo "${git_remote_origin_url}" |awk -F '/' '{print $2}' |awk -F '.git' '{print $1}')
+  log debug "git_remote_origin_url_repo is ${git_remote_origin_url_repo}";
+
+}
+
+function update_git_config {
+
+  if [[ $(git config --list |grep -c 'remote.origin.url') == "1" ]];then
+
+    get_variables_from_git_remote_url
+
+    case ${git_remote_origin_url_git_provider} in
+      github)    git_config_user_name="${git_config_user_name_github}"
+                 git_config_user_email="${git_config_user_email_github}"
+                 git_config_remote_origin_url_host="${git_config_ssh_config_hostname_github}"
+      ;;
+      gitlab)    git_config_user_name="${git_config_user_name_gitlab}"
+                 git_config_user_email="${git_config_user_email_gitlab}"
+                 git_config_remote_origin_url_host="${git_config_ssh_config_hostname_gitlab}"
+      ;;
+      bitbucket) git_config_user_name="${git_config_user_name_bitbucket}"
+                 git_config_user_email="${git_config_user_email_bitbucket}"
+                 git_config_remote_origin_url_host="${git_config_ssh_config_hostname_bitbucket}"
+      ;;
+    esac
+
+    if [[ "${git_remote_origin_url_host}" != "${git_config_remote_origin_url_host}" ]];then
+      git config remote.origin.url "${git_remote_origin_url_ssh_user}@${git_config_remote_origin_url_host}:${git_remote_origin_url_org}/${git_remote_origin_url_repo}.git"
+    fi
+
+    git config user.name "${git_config_user_name}"
+    git config user.email "${git_config_user_email}"
+
+    git config commit.gpgsign "${git_config_gpgsign}"
+    git config user.signingkey "${git_config_gpg_signing_key}"
+
+    log info "Remote URL is set to:";
+    git remote -v
+    log info "Adjusted git config:";
+    grep -i name ".git/config"
+    grep -i email ".git/config"
+    grep -i gpgsign ".git/config"
+    grep -i signingkey ".git/config"
+    git_remote_origin_url=$(git config --list |grep 'remote.origin.url' |awk -F '=' '{print $2}')
+    log info "remote.origin.url = ${git_remote_origin_url}";
+
+  else
+    log error "Unable to find remote.origin.url in git config - aborting!";
+    exit 1
+  fi
+
+}
+
+################################
+# MAINLINE
+################################
+get_variables_from_env
+update_git_config
